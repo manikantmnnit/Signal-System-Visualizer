@@ -4,6 +4,7 @@ from Chapter_1.signal import unit_step, ramp, unit_impulse, exponential,  Sin, C
 from backend import plot_signal
 import uuid
 from uuid import uuid4
+from Chapter_3.system_properties import system_props
 
 
 # ---------------------------------------------
@@ -79,6 +80,7 @@ if chapter3_selected:
     st.session_state.chapter = "Chapter 3"
 
 # ----------------main Content
+# ------------Chapter 1 :'Basic Signal Plots'
 if st.session_state.chapter=='Chapter 1':
     st.header('Basic Signal Plots')
 
@@ -215,13 +217,114 @@ if st.session_state.chapter=='Chapter 2':
                 st.session_state.signal_delay=get_continuous_delayed()
                 st.pyplot(plot_signal(t-st.session_state.signal_delay, st.session_state.signal_delay*y, plot_type='plot',title=f"{st.session_state.signal_choice} Signal"))
 
+
+# ------------Chapter 3 : System Properties
+
+if st.session_state.chapter=='Chapter 3':
+    st.header('Analyse the system properties') 
+
+    col1,col2,col3=st.columns(3)
+
+    with col1:
+        st.session_state.signal_mode=st.radio(
+            " select a signal mode",
+            ( "Discrete","Continuous")
+            )
+
+    with col2:
+        if st.session_state.signal_mode=='Discrete':
+            st.session_state.signal_choice=st.multiselect('select the Discrete signal',
+                 ["unit step", "unit impulse", "ramp", "exponential","sin","cos"])
+            st.session_state.parameters =get_discrete_input()
+
             
-
-        
-
-
-
-        
+            # generate signal and visualize 
+            for sig_name in st.session_state.signal_choice:
+                    t, y = get_signal(sig_name, st.session_state.parameters, st.session_state.signal_mode)
+                    st.pyplot(plot_signal(t, y, title=f"{sig_name} signal"))
 
 
+            
+        if st.session_state.signal_mode=='Continuous':
+            st.session_state.signal_choice=st.multiselect('select continuous Signal',
+                                   ('Sin','Cos','Exponential'))
+            st.session_state.parameters = get_continuous_input()
+
+            # generate signal and visualize 
+            
+            t, y = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+            st.pyplot(plot_signal(t, y, plot_type='plot', title=f"{st.session_state.signal_choice} Signal"))
+    with col3:
+        select_system_property=st.radio('select System Property',
+                                        ("Linearity", "Time Invariance", "Causality", "Stability", "Memory"),
+                                        )
        
+        if st.session_state.signal_mode=='Discrete' and st.session_state.signal_choice and st.session_state.parameters:
+    # Linearity
+            if select_system_property=="Linearity":
+                with st.expander("Click here for formal definition and example"):
+                    st.markdown(system_props["linearity"], unsafe_allow_html=True)
+
+                st.session_state.signal_delay = get_discrete_delayed()
+
+                # --- Step 1: Scaling factor for each selected signal ---
+                scale_factors = {}
+                for sig_name in st.session_state.signal_choice:
+                    scale = st.number_input(f"Scaling factor for {sig_name}", value=1, step=1)
+                    scale_factors[sig_name] = scale
+
+                
+                combined_y = None
+                t_array = None
+
+                for sig_name in st.session_state.signal_choice:
+                    t, y = get_signal(sig_name, st.session_state.parameters, st.session_state.signal_mode)
+
+                    # Apply scaling and optional delay
+                    y_scaled = np.array(y) * scale_factors[sig_name]
+                    
+                    # Sum signals
+                    if combined_y is None:
+                        combined_y = y_scaled
+                        t_array = t
+                    else:
+                        combined_y = combined_y + y_scaled
+
+                # --- Step 3: Plot the combined signal ---
+                st.subheader("Combined Scaled Signal")
+                st.pyplot(plot_signal(t_array, combined_y, title="Sum of Selected Signals"))
+
+            # Time Invariance
+
+            if select_system_property=="Time Invariance":
+                with st.expander("Click here for formal definition and example"):
+                    st.markdown(system_props["time_invariance"], unsafe_allow_html=True)
+
+                
+            # --- Step 1: Shifting factor factor for each selected signal ---
+                shift_factors = {}
+                for sig_name in st.session_state.signal_choice:
+                    scale = st.number_input(f"Shifting factor for {sig_name}", value=1, step=1)
+                    # shift_factors[sig_name] = scale
+
+                    t, y = get_signal(sig_name, st.session_state.parameters, st.session_state.signal_mode)
+                    st.pyplot(plot_signal(t-scale, y, title=f"{sig_name} signal"))
+
+            # "Causality"
+            if select_system_property=="Causality":
+                with st.expander("Click here for formal definition and example"):
+                    st.markdown(system_props["causality"], unsafe_allow_html=True)
+
+
+
+            # "Stability"
+
+            if select_system_property=="Stability":
+                 with st.expander("Click here for formal definition and example"):
+                    st.markdown(system_props["stability"], unsafe_allow_html=True)
+
+
+            # "Memory"
+            if select_system_property=="Memory":
+                 with st.expander("Click here for formal definition and example"):
+                    st.markdown(system_props["memory"], unsafe_allow_html=True)
