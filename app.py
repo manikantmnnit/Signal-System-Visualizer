@@ -1,10 +1,12 @@
 import streamlit as st
 import numpy as np
 from Chapter_1.signal import unit_step, ramp, unit_impulse, exponential,  Sin, Cos,Exponential,discrete_cos,discrete_sin, get_signal
-from backend import plot_signal
+from backend import plot_signal, plot_and_download
 import uuid
 from uuid import uuid4
 from Chapter_3.system_properties import system_props
+from Chapter_4.convolution import convolution
+from scipy import signal
 
 
 # ---------------------------------------------
@@ -13,7 +15,7 @@ from Chapter_3.system_properties import system_props
 if "chapter" not in st.session_state:
     st.session_state.chapter = None
 if "signal_mode" not in st.session_state:
-    st.session_state.signal = None
+    st.session_state.signal_mode = None
 if 'parameters' not in st.session_state:
     st.session_state.parameters=None
 
@@ -26,6 +28,9 @@ if 'system' not in st.session_state:
 if 'signal_delay' not in st.session_state:
     st.session_state.signal_delay=0
 
+if "chapter_4_section" not in st.session_state:
+        st.session_state.chapter_4_section = None
+
 
 
 
@@ -35,31 +40,35 @@ st.title("Signal and System Using Python and Chatbot")
 
 
 # ------------------------define helping functions------------------
-
 def get_discrete_input(key_suffix="main"):
     return st.number_input(
         label="Enter the discrete number",
         min_value=1, max_value=100,
         value=10, step=1,
-        key=f"discrete_input_{key_suffix}"   # stable key
+        key=f"discrete_input_{key_suffix}"   
     )
 
-def get_continuous_input():
-    return st.slider("Select time range",
-                      0.0, 100.0, 10.0, 0.01,
-                      key="continuous_input")
+def get_continuous_input(key_suffix="main"):
+    return st.slider(
+        "Select time range",
+        0.0, 100.0, 10.0, 0.01,
+        key=f"continuous_input_{key_suffix}"   
+    )
 
-def get_discrete_delayed(key_suffix="delay"):
+def get_discrete_delayed(key_suffix="main"):
     return st.slider(
         label="Enter the discrete delay",
         min_value=-20, max_value=20,
         value=10, step=1,
-        key=f"discrete_delay_{key_suffix}"
+        key=f"discrete_delay_{key_suffix}"   
     )
 
-def get_continuous_delayed():
-    return st.slider("Select Delay Range", -10.0, 10.0, 10.0, 0.01,
-                     key="continuous_delay")
+def get_continuous_delayed(key_suffix="main"):
+    return st.slider(
+        "Select Delay Range",
+        -10.0, 10.0, 10.0, 0.01,
+        key=f"continuous_delay_{key_suffix}"   
+    )
 
 # -------- sidebar for navigation --------
 chapter1_selected = st.sidebar.button("Chapter 1: Signal Plots")
@@ -78,6 +87,18 @@ if chapter2_selected:
 chapter3_selected=st.sidebar.button("Chapter 3: System Properties") 
 if chapter3_selected:
     st.session_state.chapter = "Chapter 3"
+
+# Chapter 4 button
+chapter4_selected=st.sidebar.button("Chapter 4: Convolution")
+if chapter4_selected:
+    st.session_state.chapter="Chapter 4"
+
+
+
+# Chapter 5 button
+chapter5_selected=st.sidebar.button("Chapter 5: Fourier Series")
+if chapter5_selected:
+    st.session_state.chapter="Chapter 5"
 
 # ----------------main Content
 # ------------Chapter 1 :'Basic Signal Plots'
@@ -221,6 +242,7 @@ if st.session_state.chapter=='Chapter 2':
 # ------------Chapter 3 : System Properties
 
 if st.session_state.chapter=='Chapter 3':
+
     st.header('Analyse the system properties') 
 
     col1,col2,col3=st.columns(3)
@@ -228,7 +250,8 @@ if st.session_state.chapter=='Chapter 3':
     with col1:
         st.session_state.signal_mode=st.radio(
             " select a signal mode",
-            ( "Discrete","Continuous")
+            ( "Discrete","Continuous"),
+            key="system_properties_key"
             )
 
     with col2:
@@ -246,7 +269,7 @@ if st.session_state.chapter=='Chapter 3':
 
             
         if st.session_state.signal_mode=='Continuous':
-            st.session_state.signal_choice=st.multiselect('select continuous Signal',
+            st.session_state.signal_choice=st.radio('select continuous Signal',
                                    ('Sin','Cos','Exponential'))
             st.session_state.parameters = get_continuous_input()
 
@@ -328,3 +351,113 @@ if st.session_state.chapter=='Chapter 3':
             if select_system_property=="Memory":
                  with st.expander("Click here for formal definition and example"):
                     st.markdown(system_props["memory"], unsafe_allow_html=True)
+    
+
+
+# ------------Chapter 4 : Convolution
+if st.session_state.chapter=='Chapter 4':
+
+
+    st.header('Convolution') 
+
+    col1,col2,col3=st.columns(3)
+
+    # define the signal mode
+
+    with col1:
+        st.session_state.signal_mode=st.radio(
+            " select a signal mode",
+            ( "Discrete","Continuous"),
+            key="convolution_signal_mode"
+            )
+        with st.expander("Click for Discrete Convolution"):
+            st.markdown(convolution["discrete_convolution"], unsafe_allow_html=True)
+
+        with st.expander("Click for Continuous Convolution"):
+            st.markdown(convolution["continuous_convolution"], unsafe_allow_html=True)
+    # second  column : input signals 
+    with col2:
+        if st.session_state.signal_mode=='Discrete':
+            st.session_state.signal_choice=st.radio('select the first Discrete signal',
+                 ["unit step", "unit impulse", "ramp", "exponential","sin","cos"],
+                 key="first_signal")
+            
+            st.session_state.parameters =get_discrete_input(key_suffix='first_discrete_input')
+            
+           
+            t1, y1 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+            fig=plot_signal(t1, y1, title=f"{st.session_state.signal_choice} signal")
+            plot_and_download(fig, filename=f"first_signal_{st.session_state.signal_choice}.png")
+
+            st.session_state.signal_choice=st.radio('select the second Discrete signal',
+                 ["unit step", "unit impulse", "ramp", "exponential","sin","cos"],
+                 key="second_signal")
+            
+            st.session_state.parameters =get_discrete_input(key_suffix='second_discrete_input')
+            
+           
+            t2, y2 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+            fig=plot_signal(t2, y2, title=f"{st.session_state.signal_choice} signal")
+            plot_and_download(fig, filename=f"second_{st.session_state.signal_choice}.png")
+
+
+
+            
+        if st.session_state.signal_mode=='Continuous':
+            st.session_state.signal_choice=st.radio('select first continuous Signal',
+                                   ('Sin','Cos','Exponential'),
+                                   key='first_continuous_signal')
+            st.session_state.parameters = get_continuous_input(key_suffix='first_signal')
+
+            # generate signal and visualize 
+            
+            t1, y1 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+            fig = plot_signal(t1, y1, plot_type="plot",title=f"{st.session_state.signal_choice} signal")
+
+            
+            plot_and_download(fig, filename=f"first_signal_{st.session_state.signal_choice}.png")
+            
+
+            st.session_state.signal_choice=st.radio('select second continuous Signal',
+                                   ('Sin','Cos','Exponential'),
+                                   key='second_continuous_signal')
+            st.session_state.parameters = get_continuous_input(key_suffix='second_signal')
+
+            # generate signal and visualize 
+            
+            t2, y2 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+            fig = plot_signal(t2, y2, plot_type="plot",title=f"{st.session_state.signal_choice} signal")
+
+            
+            plot_and_download(fig, filename=f"second_signal_{st.session_state.signal_choice}.png")
+            
+        
+    with col3:
+        st.header('Apply convolution on selected two signals')
+         # discrete time : convolution output
+        if st.session_state.signal_mode=='Discrete' and st.session_state.signal_choice and st.session_state.parameters:
+        
+            # m=st.number_input(label='Enter the output index',value=10,step=1)
+            # n=st.number_input(label='Enter the dummy index for summation',value=20,step=1)
+
+            result=np.convolve(y1,y2)
+            
+            t_conv = np.arange(len(result))
+
+            # Plot convolution result
+            fig=plot_signal(t_conv, result, plot_type="stem", title="Convolution Result y[n] = x[n] * h[n]")
+
+            plot_and_download(fig, filename=f"discrete_convolution.png")
+
+
+        # continuous time : convolution output
+        if st.session_state.signal_mode=='Continuous' and st.session_state.signal_choice and st.session_state.parameters:
+        
+            dt = t1[1] - t1[0]  # assume uniform sampling
+            y_conv = signal.convolve(y1, y2, mode='full') * dt
+            t_conv = np.arange(0, len(y_conv)*dt, dt)
+
+            # Plot the convolution
+            fig_conv = plot_signal(t_conv, y_conv, plot_type="plot", title="Continuous-time Convolution")
+            plot_and_download(fig_conv, filename="continuous_time_convolution_result.png")
+
