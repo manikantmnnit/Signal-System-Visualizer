@@ -1,5 +1,7 @@
 from typing import Literal
 import matplotlib.pyplot as plt
+import streamlit as st
+import io
 
 # ---------------- Common Plot Function ---------------- #
 
@@ -37,4 +39,27 @@ def plot_signal(t, y,
     
     return fig
 
+# --------------------------plot and download the image using streamlit
+def plot_and_download(fig, filename="signal_plot.png"):
+    """
+    Display a matplotlib figure in Streamlit and provide a download button.
+    
+    Args:
+        fig: matplotlib.figure.Figure object
+        filename: Name of the file to download
+    """
+    # Show the figure
+    st.pyplot(fig)
 
+    # Save figure to buffer
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    buf.seek(0)
+
+    # Download button
+    st.download_button(
+        label="Download Signal Plot",
+        data=buf,
+        file_name=filename,
+        mime="image/png"
+    )

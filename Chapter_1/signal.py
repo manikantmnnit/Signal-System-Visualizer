@@ -37,6 +37,7 @@ def exponential(n, alpha=0.1):
     return t, y
 
 
+
 def discrete_sin(n, omega=0.1):
     """
     Generate discrete-time sine signal
@@ -45,36 +46,47 @@ def discrete_sin(n, omega=0.1):
     """
     t = np.arange(-n, n+1)  
     y = np.sin(omega * t)
+    return t, 
+def discrete_sin(n, f=1, N=32):
+    """
+    Generate discrete-time cosine signal
+    x[n] = sin(2π f n / N)
+    """
+    t = np.arange(-n, n+1)
+    omega = 2 * np.pi * f / N
+    y = np.sin(omega * t)
     return t, y
 
 
-def discrete_cos(n, omega=0.1):
+def discrete_cos(n, f=1, N=32):
     """
     Generate discrete-time cosine signal
-    x[n] = cos(ωn)
-
+    x[n] = cos(2π f n / N)
     """
     t = np.arange(-n, n+1)
+    omega = 2 * np.pi * f / N
     y = np.cos(omega * t)
     return t, y
 
 
 # create functions for continuous Signals
 
-def Sin(t, dt=0.01):
+def Sin(t, f=1, dt=0.01):
     """
-    Generate Sin signal with resolution dt
+    Generate continuous-time sin signal
+    x(t) = sin(2π f t)
     """
     time = np.arange(-t, t, dt)
-    y = np.sin(time)
+    y = np.sin(2 * np.pi * f * time)
     return time, y
 
-def Cos(t, dt=0.01):
+def Cos(t, f=1, dt=0.01):
     """
-    Generate Cos signal with resolution dt
+    Generate continuous-time cosine signal
+    x(t) = cos(2π f t)
     """
     time = np.arange(-t, t, dt)
-    y = np.cos(time)
+    y = np.cos(2 * np.pi * f * time)
     return time, y
 
 def Exponential(t_range, alpha=0.1, dt=0.01):
@@ -92,45 +104,33 @@ def Exponential(t_range, alpha=0.1, dt=0.01):
     return time, y
 
 
+# merge all functions in one function
 
+def get_signal(signal_type, param, mode:Literal["Discrete","Continuous"]="Discrete"):
+    """Return (t, y) for the chosen signal."""
+    if mode == "Discrete":
+        if signal_type == 'unit step':
+            return unit_step(param)
+        elif signal_type == 'ramp':
+            return ramp(param)
+        elif signal_type == 'unit impulse':
+            return unit_impulse(param)
+        elif signal_type == 'exponential':
+            return exponential(param, alpha=0.2)
+        elif signal_type == 'sin':
+            return discrete_sin(param)
+        elif signal_type == 'cos':
+            return discrete_cos(param)
 
+    elif mode == "Continuous":
+        if signal_type == 'Sin':
+            return Sin(param)
+        elif signal_type == 'Cos':
+            return Cos(param)
+        elif signal_type == 'Exponential':
+            return Exponential(param)
 
-
-# ---------------- Common Plot Function ---------------- #
-
-def plot_signal(t, y, 
-                plot_type: Literal['plot','stem']='stem',
-                title="Discrete Signal", xlabel="n", ylabel="Amplitude",
-                line_color='red', marker_color='orange', base_color='black'):
-    """
-    Common function to plot signals with custom colors
-    
-    Parameters:
-        t, y       : signal data
-        plot_type  : 'plot' for continuous, 'stem' for discrete
-        title      : plot title
-        xlabel     : x-axis label
-        ylabel     : y-axis label
-        line_color : color of line or stems
-        marker_color: color of markers for stem plot
-        base_color : color of baseline (for stem)
-    """
-    fig, ax = plt.subplots(figsize=(8,4))
-    
-    if plot_type == 'stem':
-        ax.stem(t, y, linefmt=line_color, basefmt=base_color)
-    elif plot_type == 'plot':
-        ax.plot(t, y, color=line_color)
-    else:
-        raise ValueError("plot_type must be 'plot' or 'stem'")
-    
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.grid(True)
-    # ax.legend([title])
-    
-    return fig
+    return None, None
 
 
 
