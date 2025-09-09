@@ -5,10 +5,17 @@ from backend import plot_signal, plot_and_download
 import uuid
 from uuid import uuid4
 from Chapter_3.system_properties import system_props
-from Chapter_4.convolution import convolution
+from Chapter_4.document_convolution import convolution, convolution_properties, convolution_properties_continuous 
+from Chapter_4.convolution import compute_ct_convolution, compute_dt_convolution
 from scipy import signal
+from scipy.signal import fftconvolve
 
-
+# make all the columns expand to full scree
+st.set_page_config(
+    page_title="Signal_system_Visualization",
+    layout="wide",      # <-- key part for full width
+    initial_sidebar_state="auto"
+)
 # ---------------------------------------------
 
 # Initialize session state for chapter and signal selection
@@ -28,8 +35,8 @@ if 'system' not in st.session_state:
 if 'signal_delay' not in st.session_state:
     st.session_state.signal_delay=0
 
-if "chapter_4_section" not in st.session_state:
-        st.session_state.chapter_4_section = None
+if "convol_prop" not in st.session_state:
+    st.session_state.convol_prop=None
 
 
 
@@ -264,7 +271,9 @@ if st.session_state.chapter=='Chapter 3':
             # generate signal and visualize 
             for sig_name in st.session_state.signal_choice:
                     t, y = get_signal(sig_name, st.session_state.parameters, st.session_state.signal_mode)
-                    st.pyplot(plot_signal(t, y, title=f"{sig_name} signal"))
+                    
+                    fig=plot_signal(t, y, title=f"{sig_name} signal")
+                    plot_and_download(fig, filename=f"{sig_name}.png")
 
 
             
@@ -277,6 +286,8 @@ if st.session_state.chapter=='Chapter 3':
             
             t, y = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
             st.pyplot(plot_signal(t, y, plot_type='plot', title=f"{st.session_state.signal_choice} Signal"))
+            fig=plot_signal(t, y, title=f"{st.session_state.signal_choice} signal")
+            plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
     with col3:
         select_system_property=st.radio('select System Property',
                                         ("Linearity", "Time Invariance", "Causality", "Stability", "Memory"),
@@ -356,108 +367,247 @@ if st.session_state.chapter=='Chapter 3':
 
 # ------------Chapter 4 : Convolution
 if st.session_state.chapter=='Chapter 4':
+    row1 = st.container()
+    row2 = st.container()
+    with row1:
 
+        col1,col2,col3=st.columns(3)
 
-    st.header('Convolution') 
+        # define the signal mode
 
-    col1,col2,col3=st.columns(3)
+        with col1:
+            st.session_state.signal_mode=st.radio(
+                " select a signal mode",
+                ( "Discrete","Continuous"),
+                key="convolution_signal_mode"
+                )
+            with st.expander("Click for Discrete Convolution"):
+                st.markdown(convolution["discrete_convolution"], unsafe_allow_html=True)
 
-    # define the signal mode
-
-    with col1:
-        st.session_state.signal_mode=st.radio(
-            " select a signal mode",
-            ( "Discrete","Continuous"),
-            key="convolution_signal_mode"
-            )
-        with st.expander("Click for Discrete Convolution"):
-            st.markdown(convolution["discrete_convolution"], unsafe_allow_html=True)
-
-        with st.expander("Click for Continuous Convolution"):
-            st.markdown(convolution["continuous_convolution"], unsafe_allow_html=True)
-    # second  column : input signals 
-    with col2:
-        if st.session_state.signal_mode=='Discrete':
-            st.session_state.signal_choice=st.radio('select the first Discrete signal',
-                 ["unit step", "unit impulse", "ramp", "exponential","sin","cos"],
-                 key="first_signal")
+            with st.expander("Click for Continuous Convolution"):
+                st.markdown(convolution["continuous_convolution"], unsafe_allow_html=True)
+        # second  column : input signals 
+        with col2:
+            if st.session_state.signal_mode=='Discrete':
+                st.session_state.signal_choice=st.radio('select the first Discrete signal',
+                    ["unit step", "unit impulse", "ramp", "exponential","sin","cos"],
+                    key="first_signal")
+                
+                st.session_state.parameters =get_discrete_input(key_suffix='first_discrete_input')
+                
             
-            st.session_state.parameters =get_discrete_input(key_suffix='first_discrete_input')
+                t1, y1 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+                fig=plot_signal(t1, y1, title=f"{st.session_state.signal_choice} signal")
+                plot_and_download(fig, filename=f"first_signal_{st.session_state.signal_choice}.png")
+
+                st.session_state.signal_choice=st.radio('select the second Discrete signal',
+                    ["unit step", "unit impulse", "ramp", "exponential","sin","cos"],
+                    key="second_signal")
+                
+                st.session_state.parameters =get_discrete_input(key_suffix='second_discrete_input')
+                
             
-           
-            t1, y1 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
-            fig=plot_signal(t1, y1, title=f"{st.session_state.signal_choice} signal")
-            plot_and_download(fig, filename=f"first_signal_{st.session_state.signal_choice}.png")
+                t2, y2 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+                fig=plot_signal(t2, y2, title=f"{st.session_state.signal_choice} signal")
+                plot_and_download(fig, filename=f"second_{st.session_state.signal_choice}.png")
 
-            st.session_state.signal_choice=st.radio('select the second Discrete signal',
-                 ["unit step", "unit impulse", "ramp", "exponential","sin","cos"],
-                 key="second_signal")
+
+
+                
+            if st.session_state.signal_mode=='Continuous':
+                st.session_state.signal_choice=st.radio('select first continuous Signal',
+                                    ('Sin','Cos','Exponential'),
+                                    key='first_continuous_signal')
+                st.session_state.parameters = get_continuous_input(key_suffix='first_signal')
+
+                # generate signal and visualize 
+                
+                t1, y1 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+                fig = plot_signal(t1, y1, plot_type="plot",title=f"{st.session_state.signal_choice} signal")
+
+                
+                plot_and_download(fig, filename=f"first_signal_{st.session_state.signal_choice}.png")
+                
+
+                st.session_state.signal_choice=st.radio('select second continuous Signal',
+                                    ('Sin','Cos','Exponential'),
+                                    key='second_continuous_signal')
+                st.session_state.parameters = get_continuous_input(key_suffix='second_signal')
+
+                # generate signal and visualize 
+                
+                t2, y2 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+                fig = plot_signal(t2, y2, plot_type="plot",title=f"{st.session_state.signal_choice} signal")
+
+                
+                plot_and_download(fig, filename=f"second_signal_{st.session_state.signal_choice}.png")
+                
             
-            st.session_state.parameters =get_discrete_input(key_suffix='second_discrete_input')
+        with col3:
+            st.header('Apply convolution on selected two signals')
+            # discrete time : convolution output
+            if st.session_state.signal_mode=='Discrete' and st.session_state.signal_choice and st.session_state.parameters:
             
-           
-            t2, y2 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
-            fig=plot_signal(t2, y2, title=f"{st.session_state.signal_choice} signal")
-            plot_and_download(fig, filename=f"second_{st.session_state.signal_choice}.png")
+                # m=st.number_input(label='Enter the output index',value=10,step=1)
+                # n=st.number_input(label='Enter the dummy index for summation',value=20,step=1)
+
+                result=np.convolve(y1,y2)
+                
+                t_conv = np.arange(len(result))
+
+                # Plot convolution result
+                fig=plot_signal(t_conv, result, plot_type="stem", title="Convolution Result y[n] = x[n] * h[n]")
+
+                plot_and_download(fig, filename=f"discrete_convolution.png")
 
 
+            # continuous time : convolution output
+            if st.session_state.signal_mode=='Continuous' and st.session_state.signal_choice and st.session_state.parameters:
+            
+                dt = t1[1] - t1[0]  # assume uniform sampling
+                    
+
+                y_conv=compute_ct_convolution(y1,y2,dt)
+                t_conv = np.arange(0, len(y_conv)*dt, dt)
+
+                # Plot the convolution
+                fig_conv = plot_signal(t_conv, y_conv, plot_type="plot", title="Continuous-time Convolution")
+                plot_and_download(fig_conv, filename="continuous_time_convolution_result.png")
+        st.markdown("---")  # horizontal line
+        st.header("### Analysis of Convolution Property")
+               
+
+    # ---- Second row ----
+    
+
+    with row2:
+        col4, col5, col6 = st.columns(3)
+
+
+        with col4:
+            
+            st.session_state.signal_mode=st.radio(
+                " select a signal mode",
+                ( "Discrete","Continuous"),
+                key="convolution_property_signal_mode"
+                )
+            if st.session_state.signal_mode=='Discrete':
+                with st.expander("Click for distributive property"):
+                    st.markdown(convolution_properties['distributive'], unsafe_allow_html=True)  
+
+                with st.expander("Click for associative property"):
+                    st.markdown(convolution_properties['associative'], unsafe_allow_html=True) 
+
+                with st.expander("Click for commutative property"):
+                    st.markdown(convolution_properties["commutative"], unsafe_allow_html=True) 
+            if st.session_state.signal_mode=='Continuous':
+                with st.expander("Click for distributive property"):
+                    st.markdown(convolution_properties_continuous['distributive'], unsafe_allow_html=True)  
+
+                with st.expander("Click for associative property"):
+                    st.markdown(convolution_properties_continuous['associative'], unsafe_allow_html=True) 
+
+                with st.expander("Click for commutative property"):
+                    st.markdown(convolution_properties_continuous["commutative"], unsafe_allow_html=True) 
+
+        with col5:
+            if st.session_state.signal_mode=='Discrete':
+                selection = st.radio(
+                label='Select Convolution Property',
+                options=['Distributive (Select 3 signals) ', 'Associative (Select 3 signals)', 'Commutative (Select 2 signals)'],
+                key="convolution_property"  
+                        )
+                
+                st.session_state.signal_choice=st.multiselect('select the Discrete signal',
+                                        ["unit step", "unit impulse", "ramp", "exponential","sin","cos"])
+                st.session_state.parameters =get_discrete_input(key_suffix='x[n]_input')
 
             
-        if st.session_state.signal_mode=='Continuous':
-            st.session_state.signal_choice=st.radio('select first continuous Signal',
-                                   ('Sin','Cos','Exponential'),
-                                   key='first_continuous_signal')
-            st.session_state.parameters = get_continuous_input(key_suffix='first_signal')
-
             # generate signal and visualize 
-            
-            t1, y1 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
-            fig = plot_signal(t1, y1, plot_type="plot",title=f"{st.session_state.signal_choice} signal")
+                signals_values = []
+                signals_names = st.session_state.signal_choice  
+
+                # First: generate and plot each selected signal
+                for sig_name in signals_names:
+                    t, y = get_signal(sig_name, st.session_state.parameters, st.session_state.signal_mode)
+                    signals_values.append(y)
+
+                    fig = plot_signal(t, y, title=f"{sig_name} signal")
+                    plot_and_download(fig, filename=f"{sig_name}.png")
+
+            if st.session_state.signal_mode=='Continuous':
+                selection = st.radio(
+                label='Select Convolution Property',
+                options=['Distributive (Select 3 signals) ', 'Associative (Select 3 signals)', 'Commutative (Select 2 signals)'],
+                key="convolution_property"  
+                        )
+                
+                st.session_state.signal_choice=st.multiselect('select the Discrete signal',
+                                        ('Sin','Cos','Exponential'))
+                st.session_state.parameters =get_continuous_input(key_suffix='x(t)_input')
 
             
-            plot_and_download(fig, filename=f"first_signal_{st.session_state.signal_choice}.png")
-            
-
-            st.session_state.signal_choice=st.radio('select second continuous Signal',
-                                   ('Sin','Cos','Exponential'),
-                                   key='second_continuous_signal')
-            st.session_state.parameters = get_continuous_input(key_suffix='second_signal')
-
             # generate signal and visualize 
-            
-            t2, y2 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
-            fig = plot_signal(t2, y2, plot_type="plot",title=f"{st.session_state.signal_choice} signal")
+                signals_values = []
+                signals_names = st.session_state.signal_choice  
 
-            
-            plot_and_download(fig, filename=f"second_signal_{st.session_state.signal_choice}.png")
-            
-        
-    with col3:
-        st.header('Apply convolution on selected two signals')
-         # discrete time : convolution output
-        if st.session_state.signal_mode=='Discrete' and st.session_state.signal_choice and st.session_state.parameters:
-        
-            # m=st.number_input(label='Enter the output index',value=10,step=1)
-            # n=st.number_input(label='Enter the dummy index for summation',value=20,step=1)
+                # First: generate and plot each selected signal
+                for sig_name in signals_names:
+                    t, y = get_signal(sig_name, st.session_state.parameters, st.session_state.signal_mode)
+                    signals_values.append(y)
 
-            result=np.convolve(y1,y2)
-            
-            t_conv = np.arange(len(result))
+                    fig = plot_signal(t, y, title=f"{sig_name} signal")
+                    plot_and_download(fig, filename=f"{sig_name}.png")
 
-            # Plot convolution result
-            fig=plot_signal(t_conv, result, plot_type="stem", title="Convolution Result y[n] = x[n] * h[n]")
+        with col6:
+            st.header('Analyse the waveforms using convolution property')
 
-            plot_and_download(fig, filename=f"discrete_convolution.png")
+            if st.session_state.signal_mode == 'Continuous' and st.session_state.parameters:
+               
+                
+                dt = t1[1] - t1[0]  # uniform sampling interval
 
+                if selection == 'Commutative (Select 2 signals)':
+                    y1 = compute_ct_convolution(signals_values[0], signals_values[1], dt=dt)
+                    t1 = np.arange(len(y1)) * dt
+                    fig = plot_signal(t1, y1, title="x(t) * h(t)")
+                    plot_and_download(fig, filename="x_h_commutative.png")
 
-        # continuous time : convolution output
-        if st.session_state.signal_mode=='Continuous' and st.session_state.signal_choice and st.session_state.parameters:
-        
-            dt = t1[1] - t1[0]  # assume uniform sampling
-            y_conv = signal.convolve(y1, y2, mode='full') * dt
-            t_conv = np.arange(0, len(y_conv)*dt, dt)
+                    y2 = compute_ct_convolution(signals_values[1], signals_values[0], dt=dt)
+                    t2 = np.arange(len(y2)) * dt
+                    fig = plot_signal(t2, y2, title="h(t) * x(t)")
+                    plot_and_download(fig, filename="h_x_commutative.png")
 
-            # Plot the convolution
-            fig_conv = plot_signal(t_conv, y_conv, plot_type="plot", title="Continuous-time Convolution")
-            plot_and_download(fig_conv, filename="continuous_time_convolution_result.png")
+                elif selection == 'Distributive (Select 3 signals) ':
+                    x, h1, h2 = signals_values[:3]
 
+                    # Left side: x(t) * (h1(t) + h2(t))
+                    left = compute_ct_convolution(x, np.array(h1) + np.array(h2), dt=dt)
+                    t_left = np.arange(len(left)) * dt
+                    fig = plot_signal(t_left, left, title="x(t) * (h1(t) + h2(t))")
+                    plot_and_download(fig, filename="x_h1h2_distributive_left.png")
+
+                    # Right side: x(t)*h1(t) + x(t)*h2(t)
+                    right1 = compute_ct_convolution(x, h1, dt=dt)
+                    right2 = compute_ct_convolution(x, h2, dt=dt)
+                    right = np.array(right1) + np.array(right2)
+                    t_right = np.arange(len(right)) * dt
+                    fig = plot_signal(t_right, right, title="x(t)*h1(t) + x(t)*h2(t)")
+                    plot_and_download(fig, filename="x_h1h2_distributive_right.png")
+
+                elif selection == 'Associative (Select 3 signals)':
+                    x, h1, h2 = signals_values[:3]
+
+                    # Left side: (x(t) * h1(t)) * h2(t)
+                    y1 = compute_ct_convolution(x, h1, dt=dt)
+                    left = compute_ct_convolution(y1, h2, dt=dt)
+                    t_left = np.arange(len(left)) * dt
+                    fig = plot_signal(t_left, left, title="(x(t)*h1(t)) * h2(t)")
+                    plot_and_download(fig, filename="associative_left.png")
+
+                    # Right side: x(t) * (h1(t) * h2(t))
+                    y2 = compute_ct_convolution(h1, h2, dt=dt)
+                    right = compute_ct_convolution(x, y2, dt=dt)
+                    t_right = np.arange(len(right)) * dt
+                    fig = plot_signal(t_right, right, title="x(t) * (h1(t) * h2(t))")
+                    plot_and_download(fig, filename="associative_right.png")
