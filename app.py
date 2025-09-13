@@ -1,6 +1,6 @@
 import streamlit as st
 import numpy as np
-from Chapter_1.signal import unit_step, ramp, unit_impulse, exponential,  Sin, Cos,Exponential,discrete_cos,discrete_sin, get_signal
+from Chapter_1.signal import unit_step, ramp, unit_impulse, exponential,  Sin, Cos,Exponential,discrete_cos,discrete_sin, get_signal,discrete_sawtooth,discrete_square
 from backend import plot_signal, plot_and_download
 import uuid
 from uuid import uuid4
@@ -9,6 +9,9 @@ from Chapter_4.document_convolution import convolution, convolution_properties, 
 from Chapter_4.convolution import compute_ct_convolution, compute_dt_convolution
 from scipy import signal
 from scipy.signal import fftconvolve
+from Chapter_5.document_fourier_series import fourier_series
+from Chapter_5.fourier_series import fourier_coeff,fourier_coeff_table, fourier_coeff_continuous,dtfs_synthesis,ctfs_synthesis
+import pandas as pd
 
 # make all the columns expand to full scree
 st.set_page_config(
@@ -38,6 +41,9 @@ if 'signal_delay' not in st.session_state:
 if "convol_prop" not in st.session_state:
     st.session_state.convol_prop=None
 
+if 'fourier_series_time' not in st.session_state:
+    st.session_state.fourier_series_time=None
+
 
 
 
@@ -64,7 +70,7 @@ def get_continuous_input(key_suffix="main"):
 
 def get_discrete_delayed(key_suffix="main"):
     return st.slider(
-        label="Enter the discrete delay",
+        label="Enter the discrete value",
         min_value=-20, max_value=20,
         value=10, step=1,
         key=f"discrete_delay_{key_suffix}"   
@@ -72,7 +78,7 @@ def get_discrete_delayed(key_suffix="main"):
 
 def get_continuous_delayed(key_suffix="main"):
     return st.slider(
-        "Select Delay Range",
+        "Select the continuous value",
         -10.0, 10.0, 10.0, 0.01,
         key=f"continuous_delay_{key_suffix}"   
     )
@@ -178,7 +184,8 @@ if st.session_state.chapter=='Chapter 2':
             # generate signal and visualize 
             
             t, y = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
-            st.pyplot(plot_signal(t, y, plot_type='plot', title=f"{st.session_state.signal_choice} Signal"))
+            fig=plot_signal(t, y, plot_type='plot', xlabel='t',title=f"{st.session_state.signal_choice} Signal")
+            plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png",key='Continuous Signal Plot')
 
     with col3:
         st.session_state.system = st.radio(
@@ -190,29 +197,79 @@ if st.session_state.chapter=='Chapter 2':
 
             # Reverse
             if st.session_state.system=='Reverse':
-                st.header('Reverse')
-                st.pyplot(plot_signal(t, -y, title=f"{st.session_state.signal_choice} Signal"))
+                
+                fig=plot_signal(-t, y, title=f"{st.session_state.signal_choice} signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
             # Square
             if st.session_state.system=='Square':
-                st.header('Square')
-                st.pyplot(plot_signal(t, y*y, title=f"{st.session_state.signal_choice} Signal"))
+               
+                fig=plot_signal(t, y**2, title=f"{st.session_state.signal_choice} signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
             # for time scaling
             if st.session_state.system=="Time Scaling":
                 # define delay 
-                st.session_state.signal_delay=get_discrete_delayed()
-                st.pyplot(plot_signal(st.session_state.signal_delay*t, y, title=f"{st.session_state.signal_choice} Signal"))
+                scaling=get_discrete_delayed()
+                zero_idx = np.where(t == 0)[0][0]
+                t_neg = t[:zero_idx]
+                y_neg = y[:zero_idx]
+
+                # non-negative times
+                t_pos = t[zero_idx:]
+                y_pos = y[zero_idx:]
+                if scaling > 0:
+                    t_pos_scaled = t_pos[::scaling]
+                    y_pos_scaled = y_pos[::scaling]
+                    t = np.concatenate([t_neg, t_pos_scaled])
+                    y= np.concatenate([y_neg, y_pos_scaled])
+                elif scaling < 0:
+                    abs_scaling = abs(scaling)
+                    
+                    # Time reversal should apply to the ENTIRE signal
+                    # Reverse both time and signal arrays
+                    t_reversed = -t[::-1]  # Reverse time and change sign
+                    y_reversed = y[::-1]   # Reverse signal values
+                    
+                    # Apply scaling (subsampling)
+                    t = t_reversed[::abs_scaling]
+                    y = y_reversed[::abs_scaling]
+    
+                    # Sort by time (important after reversal)
+                    sort_idx = np.argsort(t)
+                    t = t[sort_idx]
+                    y = y[sort_idx]
+
+                
+                
+                else:
+                    raise ValueError(" Cant provide the value for scaling =0")
+                
+
+                
+                fig=plot_signal(t, y, title=f"{st.session_state.signal_choice} signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
             if st.session_state.system=="Amplitude Scaling":
                 # define delay
-                st.session_state.signal_delay=get_discrete_delayed()
-                st.pyplot(plot_signal( t, st.session_state.signal_delay*y, title=f"{st.session_state.signal_choice} Signal"))
+                scaling=get_discrete_delayed()
+                # t,y=get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode,)
+                
+                
+                fig=plot_signal( t, scaling*y, title=f"{st.session_state.signal_choice} Signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
             # for Delay
             if st.session_state.system=='Delay':
-                st.session_state.signal_delay=get_discrete_delayed()
-                st.pyplot(plot_signal(t-st.session_state.signal_delay, y, title=f"{st.session_state.signal_choice} Signal"))
+                delay=get_discrete_delayed()
+                t,y=get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
+                
+                
+                fig=plot_signal(t, y, title=f"{st.session_state.signal_choice} Signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
+
+            
+
 
             
 
@@ -220,31 +277,35 @@ if st.session_state.chapter=='Chapter 2':
 
             # Reverse
             if st.session_state.system=='Reverse':
-                st.header('Reverse')
-                st.pyplot(plot_signal(-t, y, plot_type='plot',title=f"{st.session_state.signal_choice} Signal"))
+                
+                fig=plot_signal(-t, y, plot_type='plot',xlabel='t',title=f"{st.session_state.signal_choice} Signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
             # Square
             if st.session_state.system=='Square':
-                st.header('Square')
-                st.pyplot(plot_signal(t, y*y, plot_type='plot',title=f"{st.session_state.signal_choice} Signal"))
+                
+                fig=plot_signal(t, y*y, plot_type='plot',xlabel='t',title=f"{st.session_state.signal_choice} Signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
             # for time scaling
             if st.session_state.system=="Time Scaling":
                 # define delay
                 st.session_state.signal_delay=get_continuous_delayed()
-                st.pyplot(plot_signal(st.session_state.signal_delay*t, y, plot_type='plot',title=f"{st.session_state.signal_choice} Signal"))
+                fig=plot_signal(t/st.session_state.signal_delay, y, xlabel='t',plot_type='plot',title=f"{st.session_state.signal_choice} Signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
                 # for time scaling
             if st.session_state.system=="Amplitude Scaling":
                 # define delay
                 st.session_state.signal_delay=get_continuous_delayed()
-                st.pyplot(plot_signal(t, st.session_state.signal_delay*y, plot_type='plot',title=f"{st.session_state.signal_choice} Signal"))
+                fig=plot_signal(t, st.session_state.signal_delay*y, plot_type='plot',xlabel='t',title=f"{st.session_state.signal_choice} Signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
             # for Delay
             if st.session_state.system=='Delay':
                 st.session_state.signal_delay=get_continuous_delayed()
-                st.pyplot(plot_signal(t-st.session_state.signal_delay, st.session_state.signal_delay*y, plot_type='plot',title=f"{st.session_state.signal_choice} Signal"))
-
+                fig=plot_signal(t-st.session_state.signal_delay, st.session_state.signal_delay*y, plot_type='plot',xlabel='t',title=f"{st.session_state.signal_choice} Signal")
+                plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
 
 # ------------Chapter 3 : System Properties
 
@@ -285,8 +346,8 @@ if st.session_state.chapter=='Chapter 3':
             # generate signal and visualize 
             
             t, y = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
-            st.pyplot(plot_signal(t, y, plot_type='plot', title=f"{st.session_state.signal_choice} Signal"))
-            fig=plot_signal(t, y, title=f"{st.session_state.signal_choice} signal")
+            # st.pyplot(plot_signal(t, y, plot_type='plot', title=f"{st.session_state.signal_choice} Signal"))
+            fig=plot_signal(t, y,plot_type='plot',xlabel='t', title=f"{st.session_state.signal_choice} signal")
             plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
     with col3:
         select_system_property=st.radio('select System Property',
@@ -366,7 +427,7 @@ if st.session_state.chapter=='Chapter 3':
 
 
 # ------------Chapter 4 : Convolution
-if st.session_state.chapter=='Chapter 4':
+if st.session_state.chapter=='Chapter 4':   
     row1 = st.container()
     row2 = st.container()
     with row1:
@@ -423,7 +484,7 @@ if st.session_state.chapter=='Chapter 4':
                 # generate signal and visualize 
                 
                 t1, y1 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
-                fig = plot_signal(t1, y1, plot_type="plot",title=f"{st.session_state.signal_choice} signal")
+                fig = plot_signal(t1, y1, plot_type="plot",xlabel='t',title=f"{st.session_state.signal_choice} signal")
 
                 
                 plot_and_download(fig, filename=f"first_signal_{st.session_state.signal_choice}.png")
@@ -437,7 +498,7 @@ if st.session_state.chapter=='Chapter 4':
                 # generate signal and visualize 
                 
                 t2, y2 = get_signal(st.session_state.signal_choice, st.session_state.parameters, st.session_state.signal_mode)
-                fig = plot_signal(t2, y2, plot_type="plot",title=f"{st.session_state.signal_choice} signal")
+                fig = plot_signal(t2, y2, plot_type="plot",xlabel='t',title=f"{st.session_state.signal_choice} signal")
 
                 
                 plot_and_download(fig, filename=f"second_signal_{st.session_state.signal_choice}.png")
@@ -471,7 +532,7 @@ if st.session_state.chapter=='Chapter 4':
                 t_conv = np.arange(0, len(y_conv)*dt, dt)
 
                 # Plot the convolution
-                fig_conv = plot_signal(t_conv, y_conv, plot_type="plot", title="Continuous-time Convolution")
+                fig_conv = plot_signal(t_conv, y_conv, xlabel='t',plot_type="plot", title="Continuous-time Convolution")
                 plot_and_download(fig_conv, filename="continuous_time_convolution_result.png")
         st.markdown("---")  # horizontal line
         st.header("### Analysis of Convolution Property")
@@ -542,7 +603,7 @@ if st.session_state.chapter=='Chapter 4':
                 key="convolution_property"  
                         )
                 
-                st.session_state.signal_choice=st.multiselect('select the Discrete signal',
+                st.session_state.signal_choice=st.multiselect('select the Continuous  signal',
                                         ('Sin','Cos','Exponential'))
                 st.session_state.parameters =get_continuous_input(key_suffix='x(t)_input')
 
@@ -556,7 +617,7 @@ if st.session_state.chapter=='Chapter 4':
                     t, y = get_signal(sig_name, st.session_state.parameters, st.session_state.signal_mode)
                     signals_values.append(y)
 
-                    fig = plot_signal(t, y, title=f"{sig_name} signal")
+                    fig = plot_signal(t, y, xlabel='t',title=f"{sig_name} signal")
                     plot_and_download(fig, filename=f"{sig_name}.png")
 
         with col6:
@@ -570,12 +631,12 @@ if st.session_state.chapter=='Chapter 4':
                 if selection == 'Commutative (Select 2 signals)':
                     y1 = compute_ct_convolution(signals_values[0], signals_values[1], dt=dt)
                     t1 = np.arange(len(y1)) * dt
-                    fig = plot_signal(t1, y1, title="x(t) * h(t)")
+                    fig = plot_signal(t1, y1,xlabel='t', title="x(t) * h(t)")
                     plot_and_download(fig, filename="x_h_commutative.png")
 
                     y2 = compute_ct_convolution(signals_values[1], signals_values[0], dt=dt)
                     t2 = np.arange(len(y2)) * dt
-                    fig = plot_signal(t2, y2, title="h(t) * x(t)")
+                    fig = plot_signal(t2, y2, xlabel='t',title="h(t) * x(t)")
                     plot_and_download(fig, filename="h_x_commutative.png")
 
                 elif selection == 'Distributive (Select 3 signals) ':
@@ -584,7 +645,7 @@ if st.session_state.chapter=='Chapter 4':
                     # Left side: x(t) * (h1(t) + h2(t))
                     left = compute_ct_convolution(x, np.array(h1) + np.array(h2), dt=dt)
                     t_left = np.arange(len(left)) * dt
-                    fig = plot_signal(t_left, left, title="x(t) * (h1(t) + h2(t))")
+                    fig = plot_signal(t_left, left, xlabel='t',title="x(t) * (h1(t) + h2(t))")
                     plot_and_download(fig, filename="x_h1h2_distributive_left.png")
 
                     # Right side: x(t)*h1(t) + x(t)*h2(t)
@@ -611,3 +672,121 @@ if st.session_state.chapter=='Chapter 4':
                     t_right = np.arange(len(right)) * dt
                     fig = plot_signal(t_right, right, title="x(t) * (h1(t) * h2(t))")
                     plot_and_download(fig, filename="associative_right.png")
+
+
+# -------Chapter 5 : Fourier Series
+if st.session_state.chapter=='Chapter 5':
+    st.header('Analysis of Fourier Series') 
+
+
+    col1,col2,col3=st.columns(3)
+    # ----------------------signal selection--------------------------------
+    with col1:
+        st.session_state.signal_mode=st.radio(
+            " Select a signal mode",
+            ( "Discrete","Continuous")
+            )
+        if st.session_state.signal_mode=='Discrete':
+            with st.expander("Click for Discrete Fourier Series"):
+                st.markdown(fourier_series["discrete"], unsafe_allow_html=True)
+            st.session_state.signal_choice = st.selectbox("Select a Discrete Periodic Signal",
+                                    ["Square", "Sawtooth", "Cosine"])
+            N = st.number_input("Enter period N", min_value=2, value=8)
+            st.session_state.fourier_series_time=N
+            # st.session_state.N=N
+            n=np.arange(0,N)
+            y=get_signal(signal_type=st.session_state.signal_choice,param=n,N_or_T=N)
+            fig=plot_signal( n, y, title=f"{st.session_state.signal_choice} Signal")
+            plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png")
+
+
+        else:
+            with st.expander("Click for Continuous Fourier Series"):
+                st.markdown(fourier_series["continuous"], unsafe_allow_html=True)
+
+            st.session_state.signal_choice = st.selectbox("Select a Continuous Periodic Signal",
+                                    ["Square", "Sawtooth", "Cosine"])
+            T = st.number_input("Enter period T", min_value=1, value=2,key="fourier series Time period")
+            st.session_state.fourier_series_time=T
+            t = np.linspace(0, T, 500)
+            
+            y = get_signal(st.session_state.signal_choice,param=t,mode= "Continuous",N_or_T=T)
+            fig = plot_signal(t, y, plot_type='plot', xlabel='t', title=f"{st.session_state.signal_choice} Signal")
+            plot_and_download(fig, f"{st.session_state.signal_choice}_signal.png")
+# ----------------COL2: FOURIER COEFFICIENTS------------------------ 
+    with col2:
+        st.header(f'Fourier Series Coefficients of {st.session_state.signal_choice} Signal')
+        
+        if st.session_state.signal_mode == "Discrete":
+            N = st.session_state.fourier_series_time
+            n = np.arange(N)
+            y=get_signal(signal_type=st.session_state.signal_choice,param=n,N_or_T=N)
+            
+            ak = fourier_coeff(y, N) 
+            st.dataframe(fourier_coeff_table(ak))
+
+            fig=plot_signal( n, np.abs(ak), title=f"Mangnitude Spectrum of {st.session_state.signal_choice} Signal")
+            plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png",key='Magnitude_spectrum_plot')
+
+            fig=plot_signal( n, np.angle(ak), title=f"Phase Spectrum of {st.session_state.signal_choice} Signal")
+            plot_and_download(fig, filename=f"{st.session_state.signal_choice} signal.png",key="Phase Spectrum_plot")
+
+        else: 
+            T=st.session_state.fourier_series_time
+            t = np.linspace(0, T, 500)
+           
+            x = get_signal(st.session_state.signal_choice,param=t,mode= "Continuous",N_or_T=T)
+            k=st.number_input(label="Enter the Number of harmonics",value=10)
+
+            # Fourier series coefficients
+            k_vals, ck = fourier_coeff_continuous(x, t, T, K=k)
+
+            # Display table
+            st.dataframe(fourier_coeff_table(ck))
+
+            # Plot spectra
+            fig = plot_signal(k_vals, np.abs(ck),xlabel='n', title=f"Magnitude Spectrum of {st.session_state.signal_choice} Signal")
+            plot_and_download(fig, filename=f"{st.session_state.signal_choice}_magnitude.png", key="Continuous_Magnitude")
+
+            fig = plot_signal(k_vals, np.angle(ck),xlabel='n', title=f"Phase Spectrum of {st.session_state.signal_choice} Signal")
+            plot_and_download(fig, filename=f"{st.session_state.signal_choice}_phase.png", key="Continuous_Phase")    
+ # -------------------- COL3: RECONSTRUCTION --------------------
+    with col3:
+        st.header(f'Reconstruction of {st.session_state.signal_choice} Signal')
+        if st.session_state.signal_mode=="Discrete":
+            N = st.session_state.fourier_series_time
+            n = np.arange(N)
+            y = get_signal(st.session_state.signal_choice,param=n,N_or_T=N)
+            ak = fourier_coeff(y, N)   # Fourier Coefficients Calculations
+            x_n=dtfs_synthesis(ak)
+            fig = plot_signal(n,np.real_if_close(x_n),title=f"Reconstructed {st.session_state.signal_choice} Signal" )
+            plot_and_download(fig,
+                filename=f"{st.session_state.signal_choice}_reconstructed_signal.png",
+                key="Reconstructed_signal_plot"
+            )
+            
+
+        else:
+            T = st.session_state.fourier_series_time
+            samples_per_period = st.number_input('Samples per period', min_value=10, value=500)
+            t = np.linspace(0, T, samples_per_period )
+
+            x = get_signal(st.session_state.signal_choice,param=t,mode= "Continuous",N_or_T=T)
+
+            # Harmonics input
+            K = st.number_input(label="Enter the Number of harmonics", value=10, step=1)
+
+            # Fourier coefficients
+            k_vals, ck = fourier_coeff_continuous(x, t, T, K=K)
+
+            # Reconstruct signal
+            x_recon = ctfs_synthesis(ck, T=T, t=t, k_vals=k_vals)
+
+            fig = plot_signal(t,  x_recon,plot_type='plot',
+                title=f"Reconstructed {st.session_state.signal_choice} Signal using {K} Harmonics"
+            )
+            plot_and_download(fig, filename=f"{st.session_state.signal_choice}_reconstructed.png", key="Continuous_Reconstructed")
+
+    st.markdown("---")
+    st.header('Fourier series Properties')
+    
