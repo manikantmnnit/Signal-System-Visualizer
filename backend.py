@@ -2,12 +2,13 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import streamlit as st
 import io
+from uuid import uuid4
 
 # ---------------- Common Plot Function ---------------- #
 
 def plot_signal(t, y, 
                 plot_type: Literal['plot','stem']='stem',
-                title="Discrete Signal", xlabel="n", ylabel="Amplitude",
+                title="Discrete Signal", xlabel: Literal['n','t']='n', ylabel="Amplitude",
                 line_color='red', marker_color='orange', base_color='black'):
     """
     Common function to plot signals with custom colors
@@ -40,7 +41,7 @@ def plot_signal(t, y,
     return fig
 
 # --------------------------plot and download the image using streamlit
-def plot_and_download(fig, filename="signal_plot.png"):
+def plot_and_download(fig, filename="signal_plot.png",key=None):
     """
     Display a matplotlib figure in Streamlit and provide a download button.
     
@@ -61,5 +62,6 @@ def plot_and_download(fig, filename="signal_plot.png"):
         label="Download Signal Plot",
         data=buf,
         file_name=filename,
-        mime="image/png"
+        mime="image/png",
+        key=key
     )
